@@ -1,19 +1,25 @@
 import inspect
 import os
+from contextlib import nullcontext
 from copy import deepcopy
 from os.path import join
-from typing import Optional, Union
+from typing import Optional, Union, Any, Sequence
 from warnings import warn
 
 from natsort import natsorted
 import pandas as pd
+from torch.cuda.amp import GradScaler
 from tqdm import tqdm
 import numpy as np
 
 import torch
-from torch import nn, optim, Tensor
+from torch import nn, optim, Tensor, autocast
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
+
+torch.set_float32_matmul_precision("medium")
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = True
 
 
 class BaseTrainer:
@@ -22,7 +28,13 @@ class BaseTrainer:
     """
 
     def __init__(
-        self, train_args: dict, homepath: str = './', device: Optional[str] = None, model: Optional = None, **kwargs
+        self,
+        train_args: dict,
+        homepath: str = './',
+        device: Optional[str] = None,
+        model: Optional = None,
+        use_mixed_precision=False,
+        **kwargs,
     ):
         """
         Base class for trainer
@@ -54,6 +66,8 @@ class BaseTrainer:
         self.history = pd.DataFrame()
         if model is not None:
             self._init_model(model)
+        self.scaler = GradScaler()
+        self.use_mixed_precision = use_mixed_precision
 
     def _init_model(self, model):
         """
@@ -87,6 +101,59 @@ class BaseTrainer:
             if key not in self.train_args:
                 self.train_args[key] = val
 
+    def _forward_backward(
+        self, model_inputs: Any, loss_inputs: Sequence = (), zero_grad=False, backward=False, optimize=False, **kwargs
+    ):
+        """
+        Performs forward and backward pass for the model
+
+        Parameters
+        ----------
+        model_inputs : Any
+            Inputs to be passed to the model
+        loss_inputs : Sequence
+            Inputs to be passed to compute losses
+        zero_grad : bool
+            Sets the gradients of all optimized torch.Tensors to zero if True.
+        backward : bool
+            Computes the gradient of current tensor w.r.t. graph leaves if True
+        optimize : bool
+            Performs a single optimization step if True
+        kwargs : dict
+            kwargs for the loss function
+
+        Returns
+        -------
+        A dict of tensors with the loss names and loss values.
+
+        """
+        if zero_grad:
+            self.optimizer.zero_grad()
+
+        if self.use_mixed_precision:
+            contextmanager = autocast(device_type=self.device.type, dtype=torch.float16)
+        else:
+            contextmanager = nullcontext()
+
+        with contextmanager:
+            model_outputs = self.model(model_inputs)
+            loss = self._calc_losses(model_outputs, model_inputs, *loss_inputs, **kwargs)
+
+        if backward:
+            if self.use_mixed_precision:
+                self.scaler.scale(loss).backward()
+            else:
+                loss.backward()
+
+        if optimize:
+            if self.use_mixed_precision:
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                self.optimizer.step()
+
+        return loss
+
     def run_one_batch(
         self,
         batch: dict,
@@ -118,19 +185,7 @@ class BaseTrainer:
 
         """
         img = self.get_data_by_name(batch, 'image')
-
-        if zero_grad:
-            self.optimizer.zero_grad()
-
-        model_outputs = self.model(img)
-        loss = self._calc_losses(model_outputs, img)
-
-        if backward:
-            loss.backward()
-
-        if optimize:
-            self.optimizer.step()
-
+        loss = self._forward_backward(img, zero_grad=zero_grad, backward=backward, optimize=optimize, **kwargs)
         return {'loss': loss.item()}
 
     def _calc_losses(self, model_outputs, img, *args, **kwargs):
