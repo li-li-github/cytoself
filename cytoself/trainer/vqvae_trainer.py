@@ -77,7 +77,9 @@ class VQVAETrainer(VanillaAETrainer):
 
         """
         img = self.get_data_by_name(batch, 'image')
-        loss = self._forward_backward(img, (variance, vq_coeff), **kwargs)
+        loss = self._forward_backward(
+            img, (variance, vq_coeff), zero_grad=zero_grad, backward=backward, optimize=optimize, **kwargs
+        )
         output = {'loss': loss.item()}
         # Update additional losses
         self._update_loss_dict(output)
