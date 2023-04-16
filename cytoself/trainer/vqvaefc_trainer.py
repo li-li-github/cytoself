@@ -19,6 +19,7 @@ class VQVAEFCTrainer(VQVAETrainer):
         device: Optional[str] = None,
         model: Optional = None,
         model_args: Optional[dict] = None,
+        use_mixed_precision: bool = True,
     ):
         """
         Initializes VQVAEFC trainer
@@ -35,10 +36,12 @@ class VQVAEFCTrainer(VQVAETrainer):
             Specify device; e.g. cpu, cuda, cuda:0 etc.
         model : Optional[torch.nn.Module]
             An autoencoder model class (uninitialized model)
+        use_mixed_precision : bool
+            Use mixed precision if True
         """
         if model is None:
             model = VQVAEFC
-        super().__init__(train_args, homepath, device, model, model_args)
+        super().__init__(train_args, homepath, device, model, model_args, use_mixed_precision)
 
     # noinspection PyMethodOverriding
     def run_one_batch(

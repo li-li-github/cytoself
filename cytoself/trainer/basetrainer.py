@@ -33,7 +33,7 @@ class BaseTrainer:
         homepath: str = './',
         device: Optional[str] = None,
         model: Optional = None,
-        use_mixed_precision=False,
+        use_mixed_precision: bool = False,
         **kwargs,
     ):
         """
@@ -49,6 +49,8 @@ class BaseTrainer:
             Specify device; e.g. cpu, cuda, cuda:0 etc.
         model : Optional[torch.nn.Module] instance
             An autoencoder model instance
+        use_mixed_precision : bool
+            Use mixed precision if True
         """
         if device is None:
             self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')

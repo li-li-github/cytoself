@@ -16,6 +16,7 @@ class VanillaAETrainer(BaseTrainer):
         device: Optional[str] = None,
         model: Optional = None,
         model_args: Optional[dict] = None,
+        use_mixed_precision: bool = True,
     ):
         """
         Initializes vanilla autoencoder trainer
@@ -32,6 +33,8 @@ class VanillaAETrainer(BaseTrainer):
             An autoencoder model class (uninitialized model)
         model_args : dict
             Arguments for model construction
+        use_mixed_precision : bool
+            Use mixed precision if True
         """
         if model is None:
             model = BaseAE
@@ -39,4 +42,4 @@ class VanillaAETrainer(BaseTrainer):
             raise ValueError('model_args is required when model is None.')
         else:
             model = model(**model_args)
-        super().__init__(train_args, homepath, device, model)
+        super().__init__(train_args, homepath, device, model, use_mixed_precision)

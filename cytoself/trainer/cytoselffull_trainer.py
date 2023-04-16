@@ -22,6 +22,7 @@ class CytoselfFullTrainer(VQVAETrainer):
         device: Optional[str] = None,
         model: Optional = None,
         model_args: Optional[dict] = None,
+        use_mixed_precision: bool = True,
     ):
         """
         Initializes cytoself lite trainer
@@ -38,10 +39,12 @@ class CytoselfFullTrainer(VQVAETrainer):
             An autoencoder model class (uninitialized model)
         model_args : dict
             Arguments for model construction
+        use_mixed_precision : bool
+            Use mixed precision if True
         """
         if model is None:
             model = CytoselfFull
-        super().__init__(train_args, homepath, device, model, model_args)
+        super().__init__(train_args, homepath, device, model, model_args, use_mixed_precision)
 
     def run_one_batch(
         self,
