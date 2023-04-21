@@ -133,7 +133,9 @@ class BaseTrainer:
             self.optimizer.zero_grad()
 
         if self.use_mixed_precision:
-            contextmanager = autocast(device_type=self.device.type, dtype=torch.float16)
+            contextmanager = autocast(
+                device_type=self.device.type, dtype=torch.bfloat16 if self.device.type == 'cpu' else torch.float16
+            )
         else:
             contextmanager = nullcontext()
 
@@ -449,7 +451,7 @@ class BaseTrainer:
     def fit(
         self,
         datamanager,
-        initial_epoch: int = 1,
+        initial_epoch: Optional[int] = None,
         tensorboard_path: Optional[str] = None,
         **kwargs,
     ):
@@ -470,7 +472,8 @@ class BaseTrainer:
         if self.model is None:
             raise ValueError('model is not defined.')
         else:
-            self.current_epoch = initial_epoch
+            if initial_epoch is not None:
+                self.current_epoch = initial_epoch
             best_vloss = torch.inf if 'val_loss' not in self.history else min(self.history['val_loss'])
             count_lr_no_improve = 0
             count_early_stop = 0
