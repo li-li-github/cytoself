@@ -12,6 +12,7 @@ import torch
 from natsort import natsorted
 from torch import Tensor, autocast, nn, optim
 from torch.cuda.amp import GradScaler
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -30,9 +31,10 @@ class BaseTrainer:
         self,
         train_args: dict,
         homepath: str = './',
-        device: Optional[str] = None,
+        device: Optional[Union[str, int]] = None,
         model: Optional = None,
         use_mixed_precision: bool = False,
+        use_multi_gpus: bool = False,
         **kwargs,
     ):
         """
@@ -44,17 +46,24 @@ class BaseTrainer:
             Training arguments
         homepath : str
             Path where training results will be saved
-        device : str
+        device : str or int
             Specify device; e.g. cpu, cuda, cuda:0 etc.
         model : Optional[torch.nn.Module] instance
             An autoencoder model instance
         use_mixed_precision : bool
             Use mixed precision if True
+        use_multi_gpus : bool
+            Use multiple GPUs if True
         """
+        self.use_multi_gpus = use_multi_gpus
         if device is None:
             self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        else:
+        elif isinstance(device, str):
             self.device = torch.device(device)
+        elif isinstance(device, int):
+            self.device = torch.device('cuda', device)
+        else:
+            raise ValueError('device must be str or int.')
 
         self.train_args = train_args
         self.model = None
@@ -81,7 +90,11 @@ class BaseTrainer:
 
         """
         self.model = model
-        self.model.to(self.device)
+        if self.use_multi_gpus:
+            model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+            self.model = DDP(model, device_ids=[self.device.index])
+        else:
+            self.model.to(self.device)
         # optimizer should be set after model moved to other devices
         self._default_train_args()
         self.set_optimizer(**self.train_args)
@@ -355,6 +368,8 @@ class BaseTrainer:
                 data_loader = datamanager.test_loader
             else:
                 raise ValueError('phase only accepts train, val or test.')
+            if self.use_multi_gpus:
+                data_loader.sampler.set_epoch(self.current_epoch)
             _metrics = []
             for _batch in tqdm(data_loader, desc=f'{phase.capitalize():>5}'):
                 loss = self.run_one_batch(_batch, zero_grad=is_train, backward=is_train, optimize=is_train, **kwargs)
@@ -541,19 +556,20 @@ class BaseTrainer:
             Path to save model checkpoints
 
         """
-        if path is None:
-            path = self.savepath_dict['checkpoints']
-        fpath = join(path, f'checkpoint_ep{self.current_epoch}.chkp')
-        torch.save(
-            {
-                'epoch': self.current_epoch,
-                'model_state_dict': self.model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'history': self.history,
-            },
-            fpath,
-        )
-        print('A model checkpoint has been saved at ' + fpath)
+        if (not self.use_multi_gpus) or (self.use_multi_gpus and self.device.index == 0):
+            if path is None:
+                path = self.savepath_dict['checkpoints']
+            fpath = join(path, f'checkpoint_ep{self.current_epoch}.chkp')
+            torch.save(
+                {
+                    'epoch': self.current_epoch,
+                    'model_state_dict': (self.model.module if self.use_multi_gpus else self.model).state_dict(),
+                    'optimizer_state_dict': self.optimizer.state_dict(),
+                    'history': self.history,
+                },
+                fpath,
+            )
+            print('A model checkpoint has been saved at ' + fpath)
 
     def load_checkpoint(self, path: Optional[str] = None, epoch: Optional[int] = None):
         if path is None:

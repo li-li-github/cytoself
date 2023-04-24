@@ -1,6 +1,6 @@
 import inspect
 from functools import partial
-from typing import Optional
+from typing import Optional, Union
 
 import torch
 from torch import Tensor, nn
@@ -19,10 +19,11 @@ class CytoselfFullTrainer(VQVAETrainer):
         self,
         train_args: dict,
         homepath: str = './',
-        device: Optional[str] = None,
+        device: Optional[Union[str, int]] = None,
         model: Optional = None,
         model_args: Optional[dict] = None,
         use_mixed_precision: bool = True,
+        use_multi_gpus: bool = False,
     ):
         """
         Initializes cytoself lite trainer
@@ -41,10 +42,12 @@ class CytoselfFullTrainer(VQVAETrainer):
             Arguments for model construction
         use_mixed_precision : bool
             Use mixed precision if True
+        use_multi_gpus : bool
+            Use multiple GPUs if True
         """
         if model is None:
             model = CytoselfFull
-        super().__init__(train_args, homepath, device, model, model_args, use_mixed_precision)
+        super().__init__(train_args, homepath, device, model, model_args, use_mixed_precision, use_multi_gpus)
 
     def run_one_batch(
         self,

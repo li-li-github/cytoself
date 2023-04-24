@@ -10,7 +10,7 @@ from joblib import Parallel, delayed
 from numpy.distutils.misc_util import is_sequence
 from numpy.typing import ArrayLike
 from pandas import DataFrame
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler
 from torchvision import transforms
 from tqdm import tqdm
 
@@ -33,6 +33,7 @@ class DataManagerOpenCell(DataManagerBase):
         fov_col: Optional[int] = -1,
         shuffle_seed: int = 1,
         intensity_adjustment: Optional[dict] = None,
+        use_multi_gpus: bool = False,
     ):
         """
         Parameters
@@ -51,6 +52,8 @@ class DataManagerOpenCell(DataManagerBase):
             Rnadom seed to shuffle data
         intensity_adjustment : dict
             Intensity adjustment for each channel.
+        use_multi_gpus : bool
+            Construct DataLoader for distributed computing if True
         """
         super().__init__(basepath=basepath, data_split=data_split, shuffle_seed=shuffle_seed)
         self.label_col = label_col
@@ -59,6 +62,7 @@ class DataManagerOpenCell(DataManagerBase):
         self.train_variance = None
         self.val_variance = None
         self.test_variance = None
+        self.use_multi_gpus = use_multi_gpus
 
         # Make sure label is in the list as data splitting depends on label information.
         if 'label' not in channel_list:
@@ -216,6 +220,55 @@ class DataManagerOpenCell(DataManagerBase):
         """
         self.unique_labels = np.unique(label_data[:, self.label_col])
 
+    def load_and_split_data(
+        self,
+        num_labels: Optional[int] = None,
+        num_workers: int = 4,
+        label_name_position: int = -2,
+        labels_tohold: Optional[Sequence[str]] = None,
+        labels_toload: Optional[Sequence[str]] = None,
+    ):
+        self.num_workers = num_workers
+        # Determine which npy files to load.
+        df_toload = self.determine_load_paths(
+            labels_toload, labels_tohold, num_labels, label_name_position, self.channel_list
+        )
+        # Load data
+        image_all, label_all = self._load_data_multi(df_toload)
+        if len(image_all) > 0:
+            image_all = np.moveaxis(image_all, np.argmin(image_all.shape), 1)
+        # Get unique labels
+        self.const_label_book(label_all)
+        # Split data
+        train_ind, val_ind, test_ind = self.split_data(label_all)
+
+        train_pair, val_pair, test_pair = (), (), ()
+        if len(train_ind) > 0:
+            train_label = label_all[train_ind]
+            if len(image_all) > 0:
+                train_data = image_all[train_ind]
+            else:
+                train_data = []
+            train_pair = (train_data, train_label)
+
+        if len(val_ind) > 0:
+            val_label = label_all[val_ind]
+            if len(image_all) > 0:
+                val_data = image_all[val_ind]
+            else:
+                val_data = []
+            val_pair = (val_data, val_label)
+
+        if len(test_ind) > 0:
+            test_label = label_all[test_ind]
+            if len(image_all) > 0:
+                test_data = image_all[test_ind]
+            else:
+                test_data = []
+            test_pair = (test_data, test_label)
+
+        return train_pair, val_pair, test_pair
+
     def const_dataloader(
         self,
         batch_size: int = 32,
@@ -240,6 +293,9 @@ class DataManagerOpenCell(DataManagerBase):
         label_name_position: int = -2,
         shuffle: bool = True,
         shuffle_test: bool = False,
+        train_pair: tuple = (),
+        val_pair: tuple = (),
+        test_pair: tuple = (),
         **kwargs,
     ):
         """
@@ -267,71 +323,78 @@ class DataManagerOpenCell(DataManagerBase):
             Shuffle train & val batches if True
         shuffle_test : bool
             Shuffle test batch if True.
+        train_pair : tuple
+            A pair of train data & label
+        val_pair : tuple
+            A pair of validation data & label
+        test_pair : tuple
+            A pair of test data & label
 
         """
-        self.num_workers = num_workers
+        # if not self.use_multi_gpus:
+        if not (train_pair or val_pair or test_pair):
+            train_pair, val_pair, test_pair = self.load_and_split_data(
+                label_name_position, labels_tohold, labels_toload, num_labels, num_workers
+            )
+
         transform_all = transforms.Compose([torch.from_numpy] + ([] if transform is None else list(transform)))
-        # Determine which npy files to load.
-        df_toload = self.determine_load_paths(
-            labels_toload, labels_tohold, num_labels, label_name_position, self.channel_list
-        )
-
-        # Load data
-        image_all, label_all = self._load_data_multi(df_toload)
-        if len(image_all) > 0:
-            image_all = np.moveaxis(image_all, np.argmin(image_all.shape), 1)
-
-        # Get unique labels
-        self.const_label_book(label_all)
-
-        # Split data
-        train_ind, val_ind, test_ind = self.split_data(label_all)
-
-        if len(train_ind) > 0:
-            train_label = label_all[train_ind]
-            if len(image_all) > 0:
-                train_data = image_all[train_ind]
-            else:
-                train_data = []
+        if train_pair:
             train_dataset = PreloadedDataset(
-                train_label, train_data, transform_all, self.unique_labels, label_format, self.label_col
+                *train_pair, transform_all, self.unique_labels, label_format, self.label_col
             )
             _assert_dtype(train_dataset.label, train_dataset.label_format)
-            self.train_loader = DataLoader(
-                train_dataset, batch_size, shuffle=shuffle, num_workers=self.num_workers, **kwargs
-            )
+            if self.use_multi_gpus:
+                self.train_loader = DataLoader(
+                    train_dataset,
+                    batch_size,
+                    shuffle=False,
+                    num_workers=self.num_workers,
+                    sampler=DistributedSampler(train_dataset, shuffle=shuffle),
+                    **kwargs,
+                )
+            else:
+                self.train_loader = DataLoader(
+                    train_dataset, batch_size, shuffle=shuffle, num_workers=self.num_workers, **kwargs
+                )
             print('Computing variance of training data...')
-            self.train_variance = np.var(train_data).item()
-        if len(val_ind) > 0:
-            val_label = label_all[val_ind]
-            if len(image_all) > 0:
-                val_data = image_all[val_ind]
-            else:
-                val_data = []
-            val_dataset = PreloadedDataset(
-                val_label, val_data, transform_all, self.unique_labels, label_format, self.label_col
-            )
+            self.train_variance = np.var(train_pair[0]).item()
+        if val_pair:
+            val_dataset = PreloadedDataset(*val_pair, transform_all, self.unique_labels, label_format, self.label_col)
             _assert_dtype(val_dataset.label, val_dataset.label_format)
-            self.val_loader = DataLoader(
-                val_dataset, batch_size, shuffle=shuffle, num_workers=self.num_workers, **kwargs
-            )
-            print('Computing variance of validation data...')
-            self.val_variance = np.var(val_data).item()
-        if len(test_ind) > 0:
-            test_label = label_all[test_ind]
-            if len(image_all) > 0:
-                test_data = image_all[test_ind]
+
+            if self.use_multi_gpus:
+                self.val_loader = DataLoader(
+                    val_dataset,
+                    batch_size,
+                    shuffle=False,
+                    num_workers=self.num_workers,
+                    sampler=DistributedSampler(val_dataset, shuffle=shuffle),
+                    **kwargs,
+                )
             else:
-                test_data = []
-            test_dataset = PreloadedDataset(
-                test_label, test_data, None, self.unique_labels, label_format, self.label_col
-            )
+                self.val_loader = DataLoader(
+                    val_dataset, batch_size, shuffle=shuffle, num_workers=self.num_workers, **kwargs
+                )
+            print('Computing variance of validation data...')
+            self.val_variance = np.var(val_pair[0]).item()
+        if test_pair:
+            test_dataset = PreloadedDataset(*test_pair, None, self.unique_labels, label_format, self.label_col)
             _assert_dtype(test_dataset.label, test_dataset.label_format)
-            self.test_loader = DataLoader(
-                test_dataset, batch_size, shuffle=shuffle_test, num_workers=self.num_workers, **kwargs
-            )
+            if self.use_multi_gpus:
+                self.test_loader = DataLoader(
+                    test_dataset,
+                    batch_size,
+                    shuffle=shuffle_test,
+                    num_workers=self.num_workers,
+                    sampler=DistributedSampler(test_dataset, shuffle=shuffle_test),
+                    **kwargs,
+                )
+            else:
+                self.test_loader = DataLoader(
+                    test_dataset, batch_size, shuffle=shuffle_test, num_workers=self.num_workers, **kwargs
+                )
             print('Computing variance of test data...')
-            self.test_variance = np.var(test_data).item()
+            self.test_variance = np.var(test_pair[0]).item()
 
     @staticmethod
     def download_sample_data(output: Optional[str] = 'sample_data'):

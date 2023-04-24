@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from cytoself.trainer.autoencoder.base import BaseAE
 from cytoself.trainer.basetrainer import BaseTrainer
@@ -13,10 +13,11 @@ class VanillaAETrainer(BaseTrainer):
         self,
         train_args: dict,
         homepath: str = './',
-        device: Optional[str] = None,
+        device: Optional[Union[str, int]] = None,
         model: Optional = None,
         model_args: Optional[dict] = None,
         use_mixed_precision: bool = True,
+        use_multi_gpus: bool = False,
     ):
         """
         Initializes vanilla autoencoder trainer
@@ -35,6 +36,8 @@ class VanillaAETrainer(BaseTrainer):
             Arguments for model construction
         use_mixed_precision : bool
             Use mixed precision if True
+        use_multi_gpus : bool
+            Use multiple GPUs if True
         """
         if model is None:
             model = BaseAE
@@ -42,4 +45,4 @@ class VanillaAETrainer(BaseTrainer):
             raise ValueError('model_args is required when model is None.')
         else:
             model = model(**model_args)
-        super().__init__(train_args, homepath, device, model, use_mixed_precision)
+        super().__init__(train_args, homepath, device, model, use_mixed_precision, use_multi_gpus)
