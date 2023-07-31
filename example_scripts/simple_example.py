@@ -10,7 +10,7 @@ from cytoself.trainer.utils.plot_history import plot_history_cytoself
 
 # 1. Prepare Data
 data_ch = ['pro', 'nuc']
-datapath = 'sample_data'  # path to download sample data
+datapath = 'example_scripts/sample_data'  # path to download sample data
 DataManagerOpenCell.download_sample_data(datapath)  # donwload data
 datamanager = DataManagerOpenCell(datapath, data_ch, fov_col=None)
 datamanager.const_dataloader(batch_size=32, label_name_position=1)
