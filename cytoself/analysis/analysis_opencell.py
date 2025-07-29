@@ -266,7 +266,7 @@ class AnalysisOpenCell(BaseAnalysis):
             ncol=1 + len(names) // 20,
             frameon=False,
         )
-        for ll in leg.legendHandles:
+        for ll in leg.legend_handles:
             ll._sizes = [6]
             ll.set_alpha(1)
         ax.set_xlabel(xlabel)
