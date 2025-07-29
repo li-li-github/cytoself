@@ -2,12 +2,12 @@ from copy import copy
 from glob import glob
 from os.path import basename, dirname, join
 from typing import List, Optional, Sequence, Union
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
 import torch
 from joblib import Parallel, delayed
-from numpy.distutils.misc_util import is_sequence
 from numpy.typing import ArrayLike
 from pandas import DataFrame
 from torch.utils.data import DataLoader
@@ -398,7 +398,7 @@ def get_file_df(basepath: str, suffix: Union[str, Sequence] = 'label', extension
     df = pd.DataFrame()
     if isinstance(suffix, str):
         df[suffix] = sorted(glob(join(basepath, '*_' + suffix + '.' + extension)))
-    elif is_sequence(suffix):
+    elif isinstance(suffix, Sequence):
         filelist = sorted(glob(join(basepath, '*_' + suffix[0] + '.' + extension)))
         df[suffix[0]] = filelist
         for sf in suffix[1:]:
