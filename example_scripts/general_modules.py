@@ -3,10 +3,14 @@
 General Data Loader
 
 The CytoselfFullTrainer module works with standard torch DataLoader objects, provided that they contain a few
-core components:
-1) Batches must return a dictionary with keys 'image' and 'label'.
+core components.
+
+Requirements:
+1. Batches must return a dictionary with keys 'image' and 'label'.
   - 'image' should be a tensor of shape (batch_size, channels, height, width).
+    - for the cytoself paper, "image" has 3 channels (protein, nucleus, nuclear distance transform)
   - 'label' should be an integer or a one-hot encoded vector of shape (batch_size, num_classes).
+2. dataset must have a `unique_labels` attribute that is a list of unique labels in the dataset.
 
 ###################
 """
@@ -17,7 +21,7 @@ import torch
 from torch.utils.data import Dataset
 
 
-class ZarrDataset(Dataset):
+class GeneralDataset(Dataset):
 
     def __init__(
         self,
@@ -40,6 +44,11 @@ class ZarrDataset(Dataset):
             data = self.transform(array)
         return {"image": data, "label": label_int}
 
+# Define a Dataloader based on the above dataset
+loader = torch.utils.data.DataLoader(
+    dataset=None, # instance of GeneralDataset
+    batch_size=None,
+)
 
 """
 ####################
@@ -47,6 +56,13 @@ General Data Manager
 ####################
 
 This module defines the minimum requirements for a data manger to be used with the `CytoselfFullTrainer` module.
+
+Requirements:
+1. A class that inherits from `DataManagerBase`.
+2. The object must have attributes `train_loader`, `val_loader`, and `test_loader` which are instances of `torch.utils.data.DataLoader`.
+3. The object must have attributes `train_variance`, `val_variance`, and `test_variance` which are floats representing the variance of 
+the training, validation, and test datasets respectively. This is essential for the training of a VQVAE model.
+
 """
 
 import numpy as np
