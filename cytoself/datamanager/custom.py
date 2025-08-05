@@ -1,19 +1,23 @@
 import numpy as np
 
-"""
-Minimum requirements for a custom datamanager to use the cytoself trainer
-"""
+from cytoself.datamanager.base import DataManagerBase
 
-class CustomDataManager:
+
+class CustomDataManager(DataManagerBase):
     def __init__(
-            self,
-            train_loader=None,
-            val_loader=None,
-            test_loader=None,
-            ):
-        self.train_loader=train_loader
-        self.val_loader=val_loader
-        self.test_loader=test_loader
+        self,
+        train_loader=None,
+        val_loader=None,
+        test_loader=None,
+    ):
+        """
+        Variance of the dataset is essential to training a VQVAE
+        """
+
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.test_loader = test_loader
+        self.unique_labels = None
 
         self.train_variance = None
         self.test_variance = None
@@ -25,14 +29,13 @@ class CustomDataManager:
         if test_loader is not None and self.test_variance is None:
             self.test_variance = self._estimate_var_from_loader(test_loader)
 
-
-    def _estimate_var_from_loader(self, loader, num_batches: int=10):
+    def _estimate_var_from_loader(self, loader, num_batches: int = 10):
         count = 0
         mean = 0.0
         M2 = 0.0
 
         for i, batch in enumerate(loader):
-            data = batch['image'].detach().numpy().astype(np.float32).ravel()
+            data = batch["image"].detach().numpy().astype(np.float32).ravel()
 
             batch_n = data.size
             batch_mean = data.mean()
