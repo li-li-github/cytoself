@@ -4,6 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cytoself"
+description = "self-supervised platform for learning features of protein subcellular localization"
+authors = [
+    {name = "Hirofumi Kobayashi", email = ""},
+    {name = "Alex Hillsley", email = "alexander.hillsley@czbiohub.org"},
+    {name = "Loic Royer", email = "loic.royer@czbiohub.org"}
+]
+
 version = "0.1.5.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -20,5 +27,14 @@ dependencies = [
     "seaborn",
     "scipy",
     "gdown",
+]
 
+[project.optional-dependencies]
+dev = [
+    "black>=23.3.0",
+    "flake8>=6.0.0",
+    "isort>=5.12.0",
+    "pre-commit>=3.2.2",
+    "pytest>=7.1.1",
+    "pytest-cov"
 ]
