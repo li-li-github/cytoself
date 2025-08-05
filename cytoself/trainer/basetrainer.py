@@ -21,7 +21,12 @@ class BaseTrainer:
     """
 
     def __init__(
-        self, train_args: dict, homepath: str = './', device: Optional[str] = None, model: Optional = None, **kwargs
+        self,
+        train_args: dict,
+        homepath: str = "./",
+        device: Optional[str] = None,
+        model: Optional = None,
+        **kwargs,
     ):
         """
         Base class for trainer
@@ -38,7 +43,7 @@ class BaseTrainer:
             An autoencoder model instance
         """
         if device is None:
-            self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         else:
             self.device = torch.device(device)
 
@@ -48,7 +53,7 @@ class BaseTrainer:
         self.lr = 0
         self.tb_writer = None
         self.optimizer = None
-        self.savepath_dict = {'homepath': homepath}
+        self.savepath_dict = {"homepath": homepath}
         self.current_epoch = 1
         self.history = pd.DataFrame()
         if model is not None:
@@ -76,11 +81,11 @@ class BaseTrainer:
         Sets default training arguments to make sure the model trainer has at least the following arguments.
         """
         args = {
-            'reducelr_patience': 4,
-            'reducelr_increment': 0.1,
-            'earlystop_patience': 12,
-            'min_lr': 1e-8,
-            'max_epoch': 100,
+            "reducelr_patience": 4,
+            "reducelr_increment": 0.1,
+            "earlystop_patience": 12,
+            "min_lr": 1e-8,
+            "max_epoch": 100,
         }
         for key, val in args.items():
             if key not in self.train_args:
@@ -116,7 +121,7 @@ class BaseTrainer:
         A dict of tensors with the loss names and loss values.
 
         """
-        img = self.get_data_by_name(batch, 'image')
+        img = self.get_data_by_name(batch, "image")
 
         if zero_grad:
             self.optimizer.zero_grad()
@@ -130,7 +135,7 @@ class BaseTrainer:
         if optimize:
             self.optimizer.step()
 
-        return {'loss': loss.item()}
+        return {"loss": loss.item()}
 
     def _calc_losses(self, model_outputs, img, *args, **kwargs):
         return nn.MSELoss(**kwargs)(model_outputs, img)
@@ -152,10 +157,12 @@ class BaseTrainer:
 
         """
         metrics = pd.DataFrame(metrics).mean(axis=0).to_frame().T
-        metrics.columns = [phase + '_' + c for c in metrics.columns]
+        metrics.columns = [phase + "_" + c for c in metrics.columns]
         return metrics
 
-    def record_metrics(self, metrics: Union[list[pd.DataFrame], pd.DataFrame]) -> pd.DataFrame:
+    def record_metrics(
+        self, metrics: Union[list[pd.DataFrame], pd.DataFrame]
+    ) -> pd.DataFrame:
         """
         Register metrics to self.history
 
@@ -171,7 +178,7 @@ class BaseTrainer:
         self.history = pd.concat([self.history, metrics], ignore_index=True, axis=0)
         self.history = self.history.fillna(0)
 
-    def set_optimizer(self, optimizer: Union[str, optim.Optimizer] = 'AdamW', **kwargs):
+    def set_optimizer(self, optimizer: Union[str, optim.Optimizer] = "AdamW", **kwargs):
         """
         Sets optimizer
 
@@ -183,23 +190,27 @@ class BaseTrainer:
         """
         if self.model:
             if isinstance(optimizer, str):
-                if optimizer == 'Adam':
+                if optimizer == "Adam":
                     local_optimizer = optim.Adam
-                elif optimizer == 'AdamW':
+                elif optimizer == "AdamW":
                     local_optimizer = optim.AdamW
                 else:
                     raise ValueError(
                         optimizer
-                        + ' cannot be specified with string. Please pass a torch.optim.Optimizer object directly'
+                        + " cannot be specified with string. Please pass a torch.optim.Optimizer object directly"
                     )
             else:
                 local_optimizer = optimizer
-            local_kwargs = {a: kwargs[a] for a in inspect.signature(local_optimizer).parameters if a in kwargs}
+            local_kwargs = {
+                a: kwargs[a]
+                for a in inspect.signature(local_optimizer).parameters
+                if a in kwargs
+            }
             self.optimizer = local_optimizer(self.model.parameters(), **local_kwargs)
         else:
             raise ValueError("self.model attribute is not initialized...")
 
-    def enable_tensorboard(self, savepath='tb_logs', **kwargs):
+    def enable_tensorboard(self, savepath="tb_logs", **kwargs):
         """
         Enables TensorBoard
 
@@ -209,15 +220,15 @@ class BaseTrainer:
             save path for tensorboard log
 
         """
-        if 'tb_logs' in self.savepath_dict:
+        if "tb_logs" in self.savepath_dict:
             warn(
                 f'TensorBoard save path has been changed from {self.savepath_dict["tb_logs"]} to {savepath}',
                 UserWarning,
             )
-        self.savepath_dict['tb_logs'] = savepath
-        if not os.path.exists(self.savepath_dict['tb_logs']):
-            os.makedirs(self.savepath_dict['tb_logs'])
-        self.tb_writer = SummaryWriter(self.savepath_dict['tb_logs'])
+        self.savepath_dict["tb_logs"] = savepath
+        if not os.path.exists(self.savepath_dict["tb_logs"]):
+            os.makedirs(self.savepath_dict["tb_logs"])
+        self.tb_writer = SummaryWriter(self.savepath_dict["tb_logs"])
 
     def write_on_tensorboard(self, tensorboard_path: str):
         """
@@ -235,21 +246,25 @@ class BaseTrainer:
             m_names = (
                 self.history.columns.to_frame()
                 .iloc[:, 0]
-                .str.replace('train_', '')
-                .str.replace('val_', '')
-                .str.replace('test_', '')
+                .str.replace("train_", "")
+                .str.replace("val_", "")
+                .str.replace("test_", "")
                 .to_frame()
                 .iloc[:, 0]
-                .str.split('_', expand=True)
+                .str.split("_", expand=True)
                 .iloc[:, 0]
                 .unique()
             )
             for tag in m_names:
-                if tag == 'loss':
-                    df = self.history.filter(items=[f'{i}_loss' for i in ['train', 'val', 'test']], axis=1)
+                if tag == "loss":
+                    df = self.history.filter(
+                        items=[f"{i}_loss" for i in ["train", "val", "test"]], axis=1
+                    )
                 else:
                     df = self.history.filter(regex=tag.lower(), axis=1)
-                self.tb_writer.add_scalars(tag, df.to_dict('index')[len(self.history) - 1], len(self.history))
+                self.tb_writer.add_scalars(
+                    tag, df.to_dict("index")[len(self.history) - 1], len(self.history)
+                )
             self.tb_writer.flush()
 
     def init_savepath(self, makedirs: bool = True, **kwargs):
@@ -262,9 +277,9 @@ class BaseTrainer:
             make directories if True
 
         """
-        directories = ['checkpoints', 'embeddings', 'visualization']
+        directories = ["checkpoints", "embeddings", "visualization"]
         for d in directories:
-            self.savepath_dict[d] = join(self.savepath_dict['homepath'], d)
+            self.savepath_dict[d] = join(self.savepath_dict["homepath"], d)
             if makedirs and not os.path.exists(self.savepath_dict[d]):
                 os.makedirs(self.savepath_dict[d])
 
@@ -285,20 +300,26 @@ class BaseTrainer:
 
         """
         if self.model is None:
-            raise ValueError('model is not defined.')
+            raise ValueError("model is not defined.")
         else:
-            is_train = phase.lower() == 'train'
-            if phase == 'train':
+            is_train = phase.lower() == "train"
+            if phase == "train":
                 data_loader = datamanager.train_loader
-            elif phase == 'val':
+            elif phase == "val":
                 data_loader = datamanager.val_loader
-            elif phase == 'test':
+            elif phase == "test":
                 data_loader = datamanager.test_loader
             else:
-                raise ValueError('phase only accepts train, val or test.')
+                raise ValueError("phase only accepts train, val or test.")
             _metrics = []
-            for _batch in tqdm(data_loader, desc=f'{phase.capitalize():>5}'):
-                loss = self.run_one_batch(_batch, zero_grad=is_train, backward=is_train, optimize=is_train, **kwargs)
+            for _batch in tqdm(data_loader, desc=f"{phase.capitalize():>5}"):
+                loss = self.run_one_batch(
+                    _batch,
+                    zero_grad=is_train,
+                    backward=is_train,
+                    optimize=is_train,
+                    **kwargs,
+                )
                 _metrics.append(loss)
             return self._aggregate_metrics(_metrics, phase)
 
@@ -319,14 +340,14 @@ class BaseTrainer:
 
         """
         output, output_label = [], []
-        for i, _batch in enumerate(tqdm(data_loader, desc='Infer')):
-            timg = self.get_data_by_name(_batch, 'image')
+        for i, _batch in enumerate(tqdm(data_loader, desc="Infer")):
+            timg = self.get_data_by_name(_batch, "image")
             out = _model(timg)
             if not torch.is_tensor(out):
                 out = out[0]
             output.append(out.detach().cpu().numpy())
-            if 'label' in _batch:
-                output_label.append(_batch['label'])
+            if "label" in _batch:
+                output_label.append(_batch["label"])
         output = np.vstack(output)
         if len(output_label) == len(output):
             output_label = np.vstack(output_label)
@@ -376,12 +397,14 @@ class BaseTrainer:
 
         """
         if self.optimizer is None:
-            raise ValueError('optimizer is not defined.')
+            raise ValueError("optimizer is not defined.")
         else:
-            if count_lr_no_improve >= self.train_args['reducelr_patience']:
-                if self.optimizer.param_groups[0]['lr'] > self.train_args['min_lr']:
-                    self.optimizer.param_groups[0]['lr'] *= self.train_args['reducelr_increment']
-                    print('learn rate = ', self.optimizer.param_groups[0]['lr'])
+            if count_lr_no_improve >= self.train_args["reducelr_patience"]:
+                if self.optimizer.param_groups[0]["lr"] > self.train_args["min_lr"]:
+                    self.optimizer.param_groups[0]["lr"] *= self.train_args[
+                        "reducelr_increment"
+                    ]
+                    print("learn rate = ", self.optimizer.param_groups[0]["lr"])
                     return 0
                 else:
                     return count_lr_no_improve
@@ -410,13 +433,19 @@ class BaseTrainer:
         """
         stop = False
         if self.model is None:
-            raise ValueError('model is not defined.')
+            raise ValueError("model is not defined.")
         else:
             self.current_epoch = initial_epoch
-            best_vloss = torch.inf if 'val_loss' not in self.history else min(self.history['val_loss'])
+            best_vloss = (
+                torch.inf
+                if "val_loss" not in self.history
+                else min(self.history["val_loss"])
+            )
             count_lr_no_improve = 0
             count_early_stop = 0
-            for current_epoch in range(self.current_epoch, self.train_args['max_epoch'] + 1):
+            for current_epoch in range(
+                self.current_epoch, self.train_args["max_epoch"] + 1
+            ):
                 if stop:
                     break
                 else:
@@ -424,19 +453,21 @@ class BaseTrainer:
                     print(f'Epoch {current_epoch}/{self.train_args["max_epoch"]}')
                     # Train the model
                     self.model.train(True)
-                    train_metrics = self.run_one_epoch(datamanager, 'train', **kwargs)
+                    train_metrics = self.run_one_epoch(datamanager, "train", **kwargs)
                     self.model.train(False)
 
                     # Validate the model
                     with torch.inference_mode():
-                        val_metrics = self.run_one_epoch(datamanager, 'val', **kwargs)
+                        val_metrics = self.run_one_epoch(datamanager, "val", **kwargs)
 
                     # Register learning rate
-                    lr_metrics = pd.DataFrame({'lr': [self.optimizer.param_groups[0]['lr']]})
+                    lr_metrics = pd.DataFrame(
+                        {"lr": [self.optimizer.param_groups[0]["lr"]]}
+                    )
                     metrics_all = [train_metrics, val_metrics, lr_metrics]
 
                     # Track the best performance, and save the model's state
-                    _vloss = np.nan_to_num(val_metrics['val_loss'].iloc[-1])
+                    _vloss = np.nan_to_num(val_metrics["val_loss"].iloc[-1])
                     if _vloss < best_vloss:
                         best_vloss = _vloss
                         self.best_model = deepcopy(self.model)
@@ -448,17 +479,21 @@ class BaseTrainer:
                         count_early_stop += 1
 
                     # Reduce learn rate on plateau
-                    count_lr_no_improve = self._reduce_lr_on_plateau(count_lr_no_improve)
+                    count_lr_no_improve = self._reduce_lr_on_plateau(
+                        count_lr_no_improve
+                    )
 
                     # Check for early stopping
-                    if count_early_stop >= self.train_args['earlystop_patience']:
-                        print('Early stopping.')
+                    if count_early_stop >= self.train_args["earlystop_patience"]:
+                        print("Early stopping.")
                         stop = True
 
                     if stop or current_epoch == self.train_args["max_epoch"]:
                         # Test the model with test data
                         with torch.inference_mode():
-                            test_metrics = self.run_one_epoch(datamanager, 'test', **kwargs)
+                            test_metrics = self.run_one_epoch(
+                                datamanager, "test", **kwargs
+                            )
                         metrics_all.append(test_metrics)
 
                     # Record metrics
@@ -466,11 +501,18 @@ class BaseTrainer:
 
                     # Record logs for TensorBoard
                     if tensorboard_path is not None:
-                        tensorboard_path = join(self.savepath_dict['homepath'], tensorboard_path)
+                        tensorboard_path = join(
+                            self.savepath_dict["homepath"], tensorboard_path
+                        )
                     self.write_on_tensorboard(tensorboard_path)
 
-            self.save_model(self.savepath_dict['homepath'], f'model_{self.current_epoch}.pt')
-            self.history.to_csv(join(self.savepath_dict['visualization'], 'training_history.csv'), index=False)
+            self.save_model(
+                self.savepath_dict["homepath"], f"model_{self.current_epoch}.pt"
+            )
+            self.history.to_csv(
+                join(self.savepath_dict["visualization"], "training_history.csv"),
+                index=False,
+            )
 
     def save_checkpoint(self, path: Optional[str] = None):
         """
@@ -483,36 +525,43 @@ class BaseTrainer:
 
         """
         if path is None:
-            path = self.savepath_dict['checkpoints']
-        fpath = join(path, f'checkpoint_ep{self.current_epoch}.chkp')
+            path = self.savepath_dict["checkpoints"]
+        fpath = join(path, f"checkpoint_ep{self.current_epoch}.chkp")
         torch.save(
             {
-                'epoch': self.current_epoch,
-                'model_state_dict': self.model.state_dict(),
-                'optimizer_state_dict': self.optimizer.state_dict(),
-                'history': self.history,
+                "epoch": self.current_epoch,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "history": self.history,
             },
             fpath,
         )
-        print('A model checkpoint has been saved at ' + fpath)
+        print("A model checkpoint has been saved at " + fpath)
 
     def load_checkpoint(self, path: Optional[str] = None, epoch: Optional[int] = None):
         if path is None:
-            path = self.savepath_dict['checkpoints']
+            path = self.savepath_dict["checkpoints"]
         if epoch is None:
-            fpath = join(path, natsorted([f for f in os.listdir(path) if f.endswith('.chkp')])[-1])
+            fpath = join(
+                path,
+                natsorted([f for f in os.listdir(path) if f.endswith(".chkp")])[-1],
+            )
         else:
-            fpath = join(path, f'checkpoint_ep{epoch}.chkp')
+            fpath = join(path, f"checkpoint_ep{epoch}.chkp")
 
-        checkpoint = torch.load(fpath)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        self.current_epoch = checkpoint['epoch']
-        self.history = checkpoint['history']
-        print(fpath + ' has been loaded.')
+        checkpoint = torch.load(fpath, weights_only=False)
+        self.model.load_state_dict(checkpoint["model_state_dict"])
+        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self.current_epoch = checkpoint["epoch"]
+        self.history = checkpoint["history"]
+        print(fpath + " has been loaded.")
 
     def save_model(
-        self, path: str, filename: str = 'pytorch_model.pt', model: Optional[nn.Module] = None, by_weights: bool = False
+        self,
+        path: str,
+        filename: str = "pytorch_model.pt",
+        model: Optional[nn.Module] = None,
+        by_weights: bool = False,
     ):
         """
         Save a pytorch model
@@ -533,7 +582,7 @@ class BaseTrainer:
             model = self.model
         fpath = join(path, filename)
         torch.save(model.state_dict() if by_weights else model, fpath)
-        print('A model has been saved at ' + fpath)
+        print("A model has been saved at " + fpath)
 
     def load_model(self, path: str, by_weights: bool = True):
         """
@@ -556,7 +605,7 @@ class BaseTrainer:
                 self.model.load_state_dict(_model.state_dict())
             else:
                 self.model = _model
-        print(f'A model has been loaded from {path}')
+        print(f"A model has been loaded from {path}")
 
     @torch.inference_mode()
     def infer_embeddings(self, data):
@@ -570,11 +619,16 @@ class BaseTrainer:
 
         """
         if data is None:
-            raise ValueError('The input to infer_embeddings cannot be None.')
+            raise ValueError("The input to infer_embeddings cannot be None.")
         if isinstance(data, DataLoader):
             return self.infer_one_epoch(data, self.model.encoder)
         else:
-            return self.model.encoder(torch.from_numpy(data).float().to(self.device)).detach().cpu().numpy()
+            return (
+                self.model.encoder(torch.from_numpy(data).float().to(self.device))
+                .detach()
+                .cpu()
+                .numpy()
+            )
 
     @torch.inference_mode()
     def infer_reconstruction(self, data):
@@ -588,7 +642,7 @@ class BaseTrainer:
 
         """
         if data is None:
-            raise ValueError('The input to infer_embeddings cannot be None.')
+            raise ValueError("The input to infer_embeddings cannot be None.")
         if isinstance(data, DataLoader):
             return self.infer_one_epoch(data, self.model)[0]
         else:
