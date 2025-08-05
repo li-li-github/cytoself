@@ -38,21 +38,26 @@ information (protein ID) as a label to learn the localization patterns of protei
 
 
 ## Installation
-Recommended: create a new environment and install cytoself on the environment from pypi
+Recommended: Install from pypi
 
-(Optional) To run cytoself on GPUs, it is recommended to install pytorch GPU version before installing cytoself 
-following the [official instruction](https://pytorch.org/get-started/locally/). The way to install pytorch GPU may vary upon your OS and CUDA version.
 ```shell script
+pip install cytoself
+```
+
+Or install directly from this repository
+```shell script
+git clone https://github.com/royerlab/cytoself.git
 conda create -y -n cytoself python
 conda activate cytoself
-# (Optional: Install pytorch GPU following the official instruction)
-pip install -e .
-```
 
-### (For the developers) Install from this repository
-```python
-TODO
+cd cytoself
+pip install .
+
+# Or for developers 
+# pip install -e .[dev]
 ```
+(Note) To run cytoself on GPUs, it is recommended to install pytorch GPU version before installing cytoself 
+following the [official instruction](https://pytorch.org/get-started/locally/). The way to install pytorch GPU may vary upon your OS and CUDA version.
 
 
 The rest of this README contains instructions to:
@@ -68,6 +73,7 @@ It is easy to use cytoself to encode meaningful representations of your images i
 ## 1. Initialize a Pre-Trained Model
 The first step is to download the pre-trained model.
 ```python
+TODO: 
 Code to download model
 ```
 This model was trained according to the specifciations outlined in the paper. Briefly, the training set included 1,100,253 crops of cells with on of 1,309 different proteins fluorescently labeled and imaged at 63x. 
@@ -75,14 +81,7 @@ This model was trained according to the specifciations outlined in the paper. Br
  TODO: the paper claims 1,311 different proteins, where did the other 2 go?
 
 
-The configuration of the model can be specified by the `model_args` input to the trainer object. Matching the specification of the paper the model_args are as follows:
- - `input_shape` / `output_shape`: (2, 100, 100) with the 2 channels corresponding to the protein, and nuclear channels
- - `emb_shapes`: (emb_fc1_shape, emb_fc2_shape)
-     - emb_fc1_shape: The local embedding corresponding to the output of VQ1 with shape (25, 25, 64), only the first 2 dims are adjustable
-     - emb_fc2_shape: The global embedding, corresponding to the output of VQ2 with shape (4, 4, 576), only the first 2 dims are adjustable 
- - `fc_output_idx`: controls which VQ layer is used for the auxilliary task of protein classification. Set to "all" because the outputs from both VQ1 and VQ2 are used for classification.
- - `vq_args`: the specifications of the VQ-VAE codebook, which consists of 2048 codes (num_embeddings=2048), with each code consisting of 64 features or dimensions (embedding_dim=64)
- - `fc_input_type`: "vqvec", the input to the fully connected layers
+The configuration of the model can be specified by the `model_args` input to the trainer object. Below are the model_args as they appear in the paper and matching the pre-trained model. For a more detailed description of each arg please see [cytoself-specs](https://github.com/royerlab/cytoself/example_scripts/cytoself_specs.md)
 
 
 ```python
@@ -119,7 +118,7 @@ data = # your image, a torch tensor matching the input shape defined in model_ar
 
 embeddings = trainer.infer_embeddings(data=data)
 ```
-`trainer.infer_embeddings` takes as input either an image, in which case it returns a single embedding, or a torch.dataloader object, in which case it returns embeddings for an entire epoch of the dataloader. Additional details about requirements for a dataloader to be used with `CytoselfFullTrainer` can be found in [general_modules.py](https://github.com/royerlab/cytoself/example_scripts/general_modules.py).
+`trainer.infer_embeddings` takes as input either an image, in which case it returns a single embedding, or a torch.dataloader object, in which case it returns embeddings for an entire epoch of the dataloader. Additional details about dataloader requirements for use with `CytoselfFullTrainer` can be found in [general_modules.py](https://github.com/royerlab/cytoself/example_scripts/general_modules.py).
 
 
 # Train a new model from example OpenCell data
@@ -240,6 +239,7 @@ fig.show()
 ```
 
 # Train a new model from your own data
+An example training script can be found [here](https://github.com/royerlab/cytoself/example_scripts/custom_training/custom_train.py)
 
 ## 1. Set up general data manager
 We have created the [`CustomDataManager`](https://github.com/royerlab/cytoself/datamanager/custom.py) class with the minimum requirements necessary to use the `CytoselfFullTrainer` module. 
@@ -248,14 +248,15 @@ We have created the [`CustomDataManager`](https://github.com/royerlab/cytoself/d
 from cytoself.datamanager.custom import CustomDataManager
 
 manager = CustomDataManager(
-    train_loader=,
-    val_loader=,
-    test_loader=,
+    train_loader=,  # an instance of torch.utils.data.DataLoader
+    val_loader=,    # an instance of torch.utils.data.DataLoader
+    test_loader=,   # an instance of torch.utils.data.DataLoader
 )
 ```
 
-## Define model and training args
+## 2. Define model and training args
 
+Below are the model args as used in the cytoself paper, change to best fit your dataset
 ```python
 model_args = {
     "input_shape": (3, 100, 100),
@@ -275,7 +276,7 @@ train_args = {
 }
 ```
 
-## Train
+## 3. Train
 
 ```python
 trainer = CytoselfFullTrainer(
@@ -287,6 +288,7 @@ trainer = CytoselfFullTrainer(
 trainer.fit(manager, tensorboard_path="tb_logs")
 ```
 
+# Notes
 
 ## Known Issues
 There seems to be compatibility issues of python multiprocessing on Windows, 
