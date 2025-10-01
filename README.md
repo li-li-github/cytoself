@@ -2,6 +2,7 @@
 
 [![Python 3.9](https://img.shields.io/badge/python-3.9-blue.svg)](https://www.python.org/downloads/release/python-397/)
 [![DOI](https://img.shields.io/badge/DOI-10.1038%2Fs41592--022--01541--z-%23403075)](https://doi.org/10.1038/s41592-022-01541-z)
+[![DOI](https://zenodo.org/badge/361991448.svg)](https://zenodo.org/doi/10.5281/zenodo.13761237)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-green.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/python/black)
 [![codecov](https://codecov.io/gh/royerlab/cytoself_pytorch/branch/main/graph/badge.svg?token=2SMIDRRC5L)](https://codecov.io/gh/royerlab/cytoself)
@@ -44,25 +45,20 @@ information (protein ID) as a label to learn the localization patterns of protei
 Recommended: create a new environment and install cytoself on the environment from pypi
 
 (Optional) To run cytoself on GPUs, it is recommended to install pytorch GPU version before installing cytoself 
-following the [official instruction](https://pytorch.org/get-started/locally/).
+following the [official instruction](https://pytorch.org/get-started/locally/). The way to install pytorch GPU may vary upon your OS and CUDA version.
 ```shell script
 conda create -y -n cytoself python=3.9
 conda activate cytoself
 # (Optional: Install pytorch GPU following the official instruction)
-pip install cytoself
-```
-
-### (For the developers) Install from this repository
-Make sure you are in the root directory of the repository.
-
-```bash
 pip install -e .
 ```
 
+### (For the developers) Install from this repository
 Install development dependencies
 
 ```bash
 pip install -r requirements/development.txt
+pre-commit install
 ```
 
 
@@ -114,7 +110,6 @@ model_args = {
     'output_shape': (2, 100, 100),
     'fc_output_idx': [2],
     'vq_args': {'num_embeddings': 512, 'embedding_dim': 64},
-    'vq_args': {'num_embeddings': 512},
     'num_class': len(datamanager.unique_labels),
     'fc_input_type': 'vqvec',
 }
@@ -184,9 +179,16 @@ fig.show()
 
 ## Tested Environments
 
-Rocky Linux 8.6, NVIDIA A100, CUDA 11.7 (GPU)
+Rocky Linux 8.6, NVIDIA A100, CUDA 11.7 (GPU)<br/>
+Ubuntu 20.04.3 LTS, NVIDIA 3090, CUDA 11.4 (GPU)<br/>
+Ubuntu 22.04.3 LTS, NVIDIA 4090, CUDA 12.2 (GPU)
 
-Ubuntu 20.04.3 LTS, NVIDIA 3090, CUDA 11.4 (GPU)
+
+## Known Issues
+There seems to be compatibility issues of python multiprocessing on Windows, 
+causing a DataLoader unable to load data ([issue](https://github.com/royerlab/cytoself/issues/32), [issue](https://github.com/royerlab/cytoself/issues/33)). 
+Please try [the temporal workaround](https://github.com/royerlab/cytoself/issues/32#issuecomment-1815910434).
+
 
 ## Data Availability
 The full data used in this work can be found here.
